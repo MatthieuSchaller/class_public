@@ -495,7 +495,7 @@ ClassEngine::getTk( double z,
     t_cdm[index_k]  = (-alphak2) / fHa;
     t_b[index_k]    = (-alphak2 + t_b[index_k]) / fHa;
     t_tot[index_k]  = (-alphak2 + t_tot[index_k]) / fHa;
-    t_dcdm[index_k]  = (-alphak2 + t_dcdm[index_k]) / fHa;
+    t_dcdm[index_k]  = (-alphak2) / fHa;
     if (ba.N_ncdm > 0)
       t_ncdm[index_k] = (-alphak2 + t_ncdm[index_k]) / fHa;
 

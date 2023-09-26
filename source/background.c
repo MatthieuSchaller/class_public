@@ -2633,13 +2633,14 @@ int background_derivs(
     rho_M += pvecback[pba->index_bg_rho_idm_dr];
   }
 
-  dy[pba->index_bi_D] = y[pba->index_bi_D_prime]/a/H;
-  dy[pba->index_bi_D_prime] = -y[pba->index_bi_D_prime] + 1.5*a*rho_M*y[pba->index_bi_D]/H;
-
   if (pba->has_dcdm == _TRUE_) {
     /** - compute dcdm density \f$ d\rho/dloga = -3 \rho - \Gamma/H \rho \f$*/
     dy[pba->index_bi_rho_dcdm] = -3.*y[pba->index_bi_rho_dcdm] - pba->Gamma_dcdm/H*y[pba->index_bi_rho_dcdm];
+    rho_M += y[pba->index_bi_rho_dcdm];
   }
+
+  dy[pba->index_bi_D] = y[pba->index_bi_D_prime]/a/H;
+  dy[pba->index_bi_D_prime] = -y[pba->index_bi_D_prime] + 1.5*a*rho_M*y[pba->index_bi_D]/H;
 
   if ((pba->has_dcdm == _TRUE_) && (pba->has_dr == _TRUE_)) {
     /** - Compute dr density \f$ d\rho/dloga = -4\rho - \Gamma/H \rho \f$ */
