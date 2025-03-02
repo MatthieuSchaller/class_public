@@ -535,7 +535,8 @@ int input_shooting(struct file_content * pfc,
                                        "omega_dcdmdr",
                                        "Omega_scf",
                                        "Omega_ini_dcdm",
-                                       "omega_ini_dcdm"};
+                                       "omega_ini_dcdm",
+				       "sigma8"};
 
   /* array of corresponding parameters that must be adjusted in order to meet the target (= unknown parameters) */
   char * const unknown_namestrings[] = {"h",                        /* unknown param for target '100*theta_s' */
@@ -545,7 +546,8 @@ int input_shooting(struct file_content * pfc,
                                         "omega_ini_dcdm",           /* unknown param for target 'omega_dcdmdr' */
                                         "scf_shooting_parameter",   /* unknown param for target 'Omega_scf' */
                                         "Omega_dcdmdr",             /* unknown param for target 'Omega_ini_dcdm' */
-                                        "omega_dcdmdr"};             /* unknown param for target 'omega_ini_dcdm' */
+                                        "omega_dcdmdr",             /* unknown param for target 'omega_ini_dcdm' */
+                                        "A_s"};                     /* unknown param for target 'sigma8' */
 
   /* for each target, module up to which we need to run CLASS in order
      to compute the targetted quantities (not running the whole code
@@ -557,7 +559,8 @@ int input_shooting(struct file_content * pfc,
                                         cs_background,     /* computation stage for target 'omega_dcdmdr' */
                                         cs_background,     /* computation stage for target 'Omega_scf' */
                                         cs_background,     /* computation stage for target 'Omega_ini_dcdm' */
-                                        cs_background};     /* computation stage for target 'omega_ini_dcdm' */
+                                        cs_background,     /* computation stage for target 'omega_ini_dcdm' */
+                                        cs_nonlinear};       /* computation stage for target 'sigma8' */
 
   struct fzerofun_workspace fzw;
 
@@ -751,100 +754,6 @@ int input_shooting(struct file_content * pfc,
     free(fzw.target_value);
   }
 
-
-  /** After the 'normal' shooting is done, do special shooting just for sigma8 if needed*/
-  class_call(parser_read_double(pfc,"sigma8",&param1,&flag1,errmsg),
-             errmsg,
-             errmsg);
-  class_call(parser_read_double(pfc,"S8",&param2,&flag2,errmsg),
-             errmsg,
-             errmsg);
-  class_test((flag1 == _TRUE_) && (flag2 == _TRUE_),
-             errmsg,
-             "You can only enter one of 'sigma8' or 'S8'.");
-  if (flag1 == _TRUE_ || flag2 == _TRUE_) {
-    /* Tell the main function that shooting indeed has occured */
-    *has_shooting=_TRUE_;
-
-    /* Create file content structure with additional entries */
-    class_call(parser_extend(pfc, 1, errmsg),
-               errmsg,errmsg);
-
-    class_call(parser_init_from_pfc(pfc, &(fzw.fc), errmsg),
-               errmsg,errmsg);
-
-    fzw.target_size = 1;
-    class_alloc(fzw.unknown_parameters_index,
-                1*sizeof(int),
-                errmsg);
-    class_alloc(fzw.target_name,
-                1*sizeof(enum target_names),
-                errmsg);
-    class_alloc(fzw.target_value,
-                1*sizeof(double),
-                errmsg);
-
-    /* store name of target parameter */
-    if (flag1 == _TRUE_) {
-      fzw.target_name[0] = sigma8;
-      fzw.target_value[0] = param1;
-    }
-    else if (flag2 == _TRUE_) {
-      fzw.target_name[0] = S8;
-      fzw.target_value[0] = param2;
-    }
-    /* store target value of target parameter */
-    fzw.unknown_parameters_index[0]=pfc->size - 1;
-    fzw.required_computation_stage = cs_nonlinear;
-    /* substitute the name of the target parameter with the name of the
-       corresponding unknown parameter */
-    strcpy(fzw.fc.name[pfc->size - 1],"A_s");
-
-    /* Print to the user */
-    if (input_verbose > 0) {
-      printf("Computing unknown input parameter '%s' using input parameter '%s'\n",
-             (flag1 ==_TRUE_?"sigma8":"S8"),
-             "A_s");
-    }
-
-    /* Set a guess for A_s from LCDM (doesn't need to be super accurate) */
-    double A_s;
-    if (flag1 == _TRUE_) {
-      A_s = param1 * 2.43e-9/0.87659;
-    }
-    else if (flag2 == _TRUE_) {
-      A_s = param2 *2.43e-9/0.891;
-    }
-    double sigma8_or_S8;
-
-    /* Now run for a single time, get the value of sigma8 (or S8) for the guess*/
-    class_call(input_try_unknown_parameters(&A_s,
-                                            1,
-                                            &fzw,
-                                            &sigma8_or_S8,
-                                            errmsg),
-               errmsg,
-               errmsg);
-
-    A_s = (fzw.target_value[0]/sigma8_or_S8) *(fzw.target_value[0]/sigma8_or_S8) * A_s; //(truesigma/sigma_for_guess)^2 *A_s_for_guess
-
-    /* Store the derived value with high enough accuracy */
-    class_sprintf(fzw.fc.value[pfc->size - 1],"%.20e",A_s);
-    if (input_verbose > 0) {
-      printf(" -> found '%s = %s'\n",
-             fzw.fc.name[pfc->size - 1],
-             fzw.fc.value[pfc->size - 1]);
-    }
-
-    parser_copy(&(fzw.fc), pfc, pfc->size - 1, pfc->size);
-
-    /** Free arrays allocated */
-    class_call(parser_free(&(fzw.fc)),
-               errmsg, errmsg);
-    free(fzw.unknown_parameters_index);
-    free(fzw.target_name);
-    free(fzw.target_value);
-  }
 
   return _SUCCESS_;
 
@@ -1372,11 +1281,8 @@ int input_try_unknown_parameters(double * unknown_parameter,
 
   /* Sigma8 depends on linear P(k), so no need to run anything except linear P(k) during shooting */
   if (compute_sigma8 == _TRUE_) {
-    /* In June 2020 the k_max_for_pk was increased for higher precision,
-       and in February 2022 the value was converted into a set of two precision parameters */
-    pt.k_max_for_pk=
-      MIN(MAX(pr.k_max_for_pk_sigma8_min, pt.k_max_for_pk),
-          pr.k_max_for_pk_sigma8_max);
+    pt.k_max_for_pk=10.0;
+    
     pt.has_pk_matter=_TRUE_;
     pt.has_perturbations = _TRUE_;
     pt.has_cl_cmb_temperature = _FALSE_;
@@ -1484,7 +1390,7 @@ int input_try_unknown_parameters(double * unknown_parameter,
       output[i] = -(rho_dcdm_today+rho_dr_today)/(ba.H0*ba.H0)+ba.Omega0_dcdmdr;
       break;
     case sigma8:
-      output[i] = fo.sigma8[fo.index_pk_m];
+      output[i] = fo.sigma8[fo.index_pk_m]-pfzw->target_value[i];
       break;
     case S8:
       output[i] = fo.sigma8[fo.index_pk_m]*sqrt(ba.Omega0_m/0.3);

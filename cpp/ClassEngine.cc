@@ -456,12 +456,26 @@ ClassEngine::getTk( double z,
 
   call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_cdm, tau, &d_cdm[0]);
   call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_b, tau, &d_b[0]);
-  call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_ncdm1, tau, &d_ncdm[0]);
   call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_tot, tau, &d_tot[0]);
   call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_b, tau, &t_b[0]);
-  call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_ncdm1, tau, &t_ncdm[0]);
-  call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_tot, tau, &d_tot[0]);
+  call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_tot, tau, &t_tot[0]);
+  if (ba.N_ncdm > 0) {
+      call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_ncdm1, tau, &d_ncdm[0]);
+      call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_ncdm1, tau, &t_ncdm[0]);
+  }
 
+  // if we have decaying dark matter, also retrieve those transfer functions
+  std::vector<double> d_dcdm;
+  std::vector<double> t_dcdm;
+  d_dcdm.clear();
+  t_dcdm.clear();
+  d_dcdm.assign( pt.k_size[index_md], 0.0 );
+  t_dcdm.assign( pt.k_size[index_md], 0.0 );
+  if (ba.Omega0_dcdmdr > 0.) {
+      call_perturb_sources_at_tau(index_md, 0, pt.index_tp_delta_dcdm, tau, &d_dcdm[0]);
+      call_perturb_sources_at_tau(index_md, 0, pt.index_tp_theta_dcdm, tau, &t_dcdm[0]);
+  }
+  
   //
   std::vector<double> h_prime(pt.k_size[index_md],0.0), eta_prime(pt.k_size[index_md],0.0);
   call_perturb_sources_at_tau(index_md, 0, pt.index_tp_eta_prime, tau, &eta_prime[0]);
@@ -481,8 +495,18 @@ ClassEngine::getTk( double z,
 
     t_cdm[index_k]  = (-alphak2) / fHa;
     t_b[index_k]    = (-alphak2 + t_b[index_k]) / fHa;
-    t_ncdm[index_k] = (-alphak2 + t_ncdm[index_k]) / fHa;
     t_tot[index_k]  = (-alphak2 + t_tot[index_k]) / fHa;
+    t_dcdm[index_k] = (-alphak2) / fHa;
+    if (ba.N_ncdm > 0)
+      t_ncdm[index_k] = (-alphak2 + t_ncdm[index_k]) / fHa;
+
+    // replace the cold dark matter with cdm + decaying dark matter if needed
+    if (ba.Omega0_dcdmdr > 0.) {
+        double rho_cdm = pvecback[ba.index_bg_rho_cdm];
+        double rho_dcdm = pvecback[ba.index_bg_rho_dcdm];
+        d_cdm[index_k] = (rho_cdm * d_cdm[index_k] + rho_dcdm * d_dcdm[index_k]) / (rho_cdm + rho_dcdm);
+        t_cdm[index_k] = (rho_cdm * t_cdm[index_k] + rho_dcdm * t_dcdm[index_k]) / (rho_cdm + rho_dcdm);
+    }   
   }
 }
 
@@ -605,6 +629,10 @@ double ClassEngine::get_f(double z)
   return f_z;
 }
 
+double ClassEngine::get_A_s( void )
+{
+  return pm.A_s;
+}
 
 double ClassEngine::get_sigma8(double z)
 {
@@ -621,8 +649,8 @@ double ClassEngine::get_sigma8(double z)
   //call to fill pvecback
   background_at_tau(&ba,tau,long_info,inter_normal, &index, pvecback);
   //background_at_tau(pba,tau,pba->long_info,pba->inter_normal,&last_index,pvecback);
-  spectra_sigma(&ba,&pm,&sp,8./ba.h,z,&sigma8);
-
+  harmonic_sigma(&ba,&pm,&sp,8./ba.h,z,&sigma8);
+a
 #ifdef DBUG
   cout << "sigma_8= "<< sigma8 <<endl;
 #endif

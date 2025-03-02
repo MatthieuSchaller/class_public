@@ -205,7 +205,7 @@
 
 enum target_names {theta_s, theta_s_100, Neff, Omega_dcdmdr, omega_dcdmdr, Omega_scf, Omega_ini_dcdm, omega_ini_dcdm, sigma8, S8};
 /* Important: Keep this number equal to the number of target_names (except sigma8, S8), and keep sigma8, S8 at the very end */
-#define _NUM_TARGETS_ 8
+#define _NUM_TARGETS_ 9
 
 /* Until which class stage is being computed? Pretty much fixed list, don't change. */
 enum computation_stage {cs_background, cs_thermodynamics, cs_perturbations, cs_primordial, cs_nonlinear, cs_transfer, cs_spectra};

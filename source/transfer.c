@@ -4500,7 +4500,7 @@ int transfer_global_selection_read(
 
   return _SUCCESS_;
 
-};
+}
 
 int transfer_workspace_init(
                             struct transfer * ptr,
